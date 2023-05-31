@@ -234,6 +234,7 @@ def _fuse_split_and_strided_op(sorted_graph: List[Tensor]) -> List[Tensor]:
 
         outputs = split_op._attrs["outputs"]
         can_fuse_split = True
+        can_optimize_split_cat = True
 
         stride = get_stride(split_input, split_dim)
         # offset on the split dim, which is different from the real offset
@@ -258,11 +259,18 @@ def _fuse_split_and_strided_op(sorted_graph: List[Tensor]) -> List[Tensor]:
                                 next_op._attrs["input_accessors"][idx], split_dim
                             )
                         )
+                        can_optimize_split_cat = (
+                            can_optimize_split_cat and
+                            next_op._attrs["op"] == "concatenate" and
+                            # TODO: can we optimize cases where split and cat are on different dims?
+                            next_op._attrs["concat_dim"] == split_dim
+                        )
             output_offsets.append(dim_offset)
             dim_offset += output._size(split_dim).value()
 
-        if not can_fuse_split:
+        if not (can_fuse_split or can_optimize_split_cat):
             continue
+
         _LOGGER.debug("Remove split from graph")
         split_input.dst_ops().remove(split_op)
 
