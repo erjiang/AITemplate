@@ -251,6 +251,11 @@ def _fuse_split_and_strided_op(sorted_graph: List[Tensor]) -> List[Tensor]:
                 and len(output.dst_ops()) == 1
                 for next_op in output.dst_ops()
             )
+            can_optimize_split_cat &= len(output.dst_ops()) > 0 and all(
+                next_op._attrs["op"] == "concatenate"
+                and next_op._attrs["concat_dim"] == split_dim
+                for next_op in output.dst_ops()
+            )
             for next_op in output.dst_ops():
                 for idx, input in enumerate(next_op._attrs["inputs"]):
                     if input == output:
@@ -258,12 +263,6 @@ def _fuse_split_and_strided_op(sorted_graph: List[Tensor]) -> List[Tensor]:
                             transform_strided_ops_utils.gemm_stride_checker(
                                 next_op._attrs["input_accessors"][idx], split_dim
                             )
-                        )
-                        can_optimize_split_cat = (
-                            can_optimize_split_cat and
-                            next_op._attrs["op"] == "concatenate" and
-                            # TODO: can we optimize cases where split and cat are on different dims?
-                            next_op._attrs["concat_dim"] == split_dim
                         )
             output_offsets.append(dim_offset)
             dim_offset += output._size(split_dim).value()

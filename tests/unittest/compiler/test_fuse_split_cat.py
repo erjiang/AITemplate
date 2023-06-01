@@ -18,10 +18,10 @@ import torch
 from aitemplate.compiler import compile_model, ops
 
 from aitemplate.compiler.base import Tensor
-from aitemplate.compiler.public import IntImm, IntVar
+from aitemplate.compiler.public import IntImm
 
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import get_random_torch_tensor, graph_has_op
 
 class FuseSplitCatTestCase(unittest.TestCase):
     def test_fuse_split_cat_rearrange(self):
@@ -49,6 +49,8 @@ class FuseSplitCatTestCase(unittest.TestCase):
             "./tmp",
             self._testMethodName
         )
+        # Check that split was removed
+        self.assertFalse(graph_has_op(model.debug_sorted_graph, "split"))
         # Run
         input_1 = get_random_torch_tensor((M.value(), N.value()), dtype=dtype)
         # Compare
@@ -89,6 +91,8 @@ class FuseSplitCatTestCase(unittest.TestCase):
             "./tmp",
             self._testMethodName
         )
+        # Check that split was removed
+        self.assertFalse(graph_has_op(model.debug_sorted_graph, "split"))
         # Run
         input_1 = get_random_torch_tensor((M.value(), N.value()), dtype=dtype)
         # Compare
