@@ -234,7 +234,6 @@ def _fuse_split_and_strided_op(sorted_graph: List[Tensor]) -> List[Tensor]:
 
         outputs = split_op._attrs["outputs"]
         can_fuse_split = True
-        can_optimize_split_cat = True
 
         stride = get_stride(split_input, split_dim)
         # offset on the split dim, which is different from the real offset
@@ -244,18 +243,17 @@ def _fuse_split_and_strided_op(sorted_graph: List[Tensor]) -> List[Tensor]:
         # still have mis-aligned accesses caused by offsets. This _check_alignment
         # filters out all bad cases.
         for output in outputs:
-            can_fuse_split &= len(output.dst_ops()) > 0 and all(
+            can_fuse_split &= len(output.dst_ops()) > 0 and (all(
                 _is_supported_op(next_op._attrs["op"])
                 # need to pass the real offset to alignment checker
                 and _check_alignment(next_op, dim_offset * stride)
                 and len(output.dst_ops()) == 1
                 for next_op in output.dst_ops()
-            )
-            can_optimize_split_cat &= len(output.dst_ops()) > 0 and all(
+            ) or all(
                 next_op._attrs["op"] == "concatenate"
                 and next_op._attrs["concat_dim"] == split_dim
                 for next_op in output.dst_ops()
-            )
+            ))
             for next_op in output.dst_ops():
                 for idx, input in enumerate(next_op._attrs["inputs"]):
                     if input == output:
@@ -267,7 +265,7 @@ def _fuse_split_and_strided_op(sorted_graph: List[Tensor]) -> List[Tensor]:
             output_offsets.append(dim_offset)
             dim_offset += output._size(split_dim).value()
 
-        if not (can_fuse_split or can_optimize_split_cat):
+        if not can_fuse_split:
             continue
 
         _LOGGER.debug("Remove split from graph")

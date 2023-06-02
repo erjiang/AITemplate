@@ -110,7 +110,7 @@ class FuseSplitCatTestCase(unittest.TestCase):
 
 
     def test_fuse_split_cat_different_dims(self):
-        """The case of splitting and then catting on different dims is not
+        """Splitting and then concatting on different dims is not
         expected to be optimized currently."""
         dtype = "float16"
         M = IntImm(512)
@@ -136,6 +136,8 @@ class FuseSplitCatTestCase(unittest.TestCase):
             "./tmp",
             self._testMethodName
         )
+        # Check that split was not removed because the dims are different
+        self.assertTrue(graph_has_op(model.debug_sorted_graph, "split"))
         # Run
         input_1 = get_random_torch_tensor((M.value(), N.value()), dtype=dtype)
         # Compare
