@@ -36,7 +36,7 @@ class FuseSplitCatTestCase(unittest.TestCase):
             is_input=True,
         )
         split_2 = ops.split()(
-            input_1, int(M.value()/2), 0
+            input_1, [139, 373], 0
         )
         concatenate_3 = ops.concatenate()(split_2[::-1], 0)
 
@@ -55,7 +55,7 @@ class FuseSplitCatTestCase(unittest.TestCase):
         # Run
         input_1 = get_random_torch_tensor((M.value(), N.value()), dtype=dtype)
         # Compare
-        split_pt = torch.split(input_1, int(M.value()/2), 0)
+        split_pt = torch.split(input_1, [139, 373], 0)
         y_pt = torch.cat(
             [split_pt[1], split_pt[0]],
             0,
