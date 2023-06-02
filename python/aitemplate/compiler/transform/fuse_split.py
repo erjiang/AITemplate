@@ -280,7 +280,6 @@ def _fuse_split_and_strided_op(sorted_graph: List[Tensor]) -> List[Tensor]:
                         )
                         # update the graph
                         next_op._attrs["inputs"][idx] = split_input
-                        break
                 split_input.dst_ops().add(next_op)
 
         # remove split op

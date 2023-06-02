@@ -23,6 +23,7 @@ from aitemplate.compiler.public import IntImm
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor, graph_has_op
 
+
 class FuseSplitCatTestCase(unittest.TestCase):
     def test_fuse_split_cat_rearrange(self):
         dtype = "float16"
@@ -57,6 +58,49 @@ class FuseSplitCatTestCase(unittest.TestCase):
         split_pt = torch.split(input_1, int(M.value()/2), 0)
         y_pt = torch.cat(
             [split_pt[1], split_pt[0]],
+            0,
+        )
+        y_ait = torch.empty_like(y_pt)
+        model.run_with_tensors(
+            {"input_1": input_1},
+            [y_ait],
+        )
+        torch.testing.assert_close(y_ait, y_pt, atol=0, rtol=0)
+
+    def test_fuse_split_cat_reuse(self):
+        """Use a split output twice in the concatenate op."""
+        dtype = "float16"
+        M = IntImm(512)
+        N = IntImm(512)
+
+        input_1 = Tensor(
+            shape=[M, N],
+            name="input_1",
+            is_input=True,
+        )
+        split_2 = ops.split()(
+            input_1, int(M.value()/2), 0
+        )
+        concatenate_3 = ops.concatenate()([split_2[1], split_2[0], split_2[1]], 0)
+
+        # Set outputs
+        concatenate_3._attrs["name"] = "output_0"
+        concatenate_3._attrs["is_output"] = True
+        # Compile
+        model = compile_model(
+            concatenate_3,
+            detect_target(),
+            "./tmp",
+            self._testMethodName
+        )
+        # Check that split was removed
+        self.assertFalse(graph_has_op(model.debug_sorted_graph, "split"))
+        # Run
+        input_1 = get_random_torch_tensor((M.value(), N.value()), dtype=dtype)
+        # Compare
+        split_pt = torch.split(input_1, int(M.value()/2), 0)
+        y_pt = torch.cat(
+            [split_pt[1], split_pt[0], split_pt[1]],
             0,
         )
         y_ait = torch.empty_like(y_pt)
