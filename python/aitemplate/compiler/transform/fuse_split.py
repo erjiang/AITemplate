@@ -243,17 +243,19 @@ def _fuse_split_and_strided_op(sorted_graph: List[Tensor]) -> List[Tensor]:
         # still have mis-aligned accesses caused by offsets. This _check_alignment
         # filters out all bad cases.
         for output in outputs:
-            can_fuse_split &= len(output.dst_ops()) > 0 and (all(
-                _is_supported_op(next_op._attrs["op"])
-                # need to pass the real offset to alignment checker
-                and _check_alignment(next_op, dim_offset * stride)
-                and len(output.dst_ops()) == 1
+            can_fuse_split &= len(output.dst_ops()) > 0 and all(
+                (
+                    _is_supported_op(next_op._attrs["op"])
+                    # need to pass the real offset to alignment checker
+                    and _check_alignment(next_op, dim_offset * stride)
+                    and len(output.dst_ops()) == 1
+                ) or
+                (
+                    next_op._attrs["op"] == "concatenate"
+                    and next_op._attrs["concat_dim"] == split_dim
+                )
                 for next_op in output.dst_ops()
-            ) or all(
-                next_op._attrs["op"] == "concatenate"
-                and next_op._attrs["concat_dim"] == split_dim
-                for next_op in output.dst_ops()
-            ))
+            )
             for next_op in output.dst_ops():
                 for idx, input in enumerate(next_op._attrs["inputs"]):
                     if input == output:

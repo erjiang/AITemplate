@@ -16,12 +16,15 @@ import unittest
 
 import torch
 from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler.ops.common.epilogue import FuncEnum
 
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.public import IntImm
 
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor, graph_has_op
+
+from aitemplate.utils import graph_utils
 
 
 class FuseSplitCatTestCase(unittest.TestCase):
@@ -196,6 +199,73 @@ class FuseSplitCatTestCase(unittest.TestCase):
             [y_ait],
         )
         torch.testing.assert_close(y_ait, y_pt, atol=0, rtol=0)
+
+    def test_fuse_split_cat_bmm(self):
+        """Optimize out a split op whose output is used by both concat and bmm."""
+        dtype = "float16"
+        B = 1
+        M = 128
+        N = 512
+        K = 512
+        split_size_or_sections = 256
+        split_dim = 2
+        T_A = Tensor(
+            # feed the second half of T_A into concatenate so that the split
+            # output is used by both bmm and concat
+            shape=[B, M, K * 2],
+            dtype=dtype,
+            name="input0",
+            is_input=True,
+        )
+        T_B = Tensor(
+            shape=[B, N, K],
+            dtype=dtype,
+            name="input1",
+            is_input=True,
+        )
+
+        Xs = ops.split()(T_A, split_size_or_sections, split_dim)
+        Ys = ops.split()(T_B, split_size_or_sections, split_dim)
+        assert len(Xs)//2 == len(Ys)
+
+        n = 2
+        Cs = []
+        for i in range(n):
+            X = Xs[i]
+            Y = Ys[i]
+            C = ops.bmm_rcr()(X, Y)
+            Cs.append(C)
+        # do an extra concatenate so that split_1 has different output ops
+        extra_concat = ops.concatenate()([Xs[3], Xs[2], Xs[3], Xs[2]], dim=split_dim)
+        bmm_cat = ops.concatenate()(Cs, dim=split_dim)
+        Y = ops.elementwise(FuncEnum.ADD)(extra_concat, bmm_cat)
+        Y._attrs["name"] = "output"
+        Y._attrs["is_output"] = True
+
+        a = get_random_torch_tensor([B, M, K*2], dtype)
+        b = get_random_torch_tensor([B, N, K], dtype)
+        xs = a.split(split_size_or_sections, split_dim)
+        ys = b.split(split_size_or_sections, split_dim)
+        cs = []
+        for i in range(n):
+            x = xs[i]
+            y = ys[i]
+            c = torch.bmm(x, y.permute(0, 2, 1))
+            cs.append(c)
+        extra_concat_pt = torch.cat([xs[3], xs[2], xs[3], xs[2]], dim=split_dim)
+        bmm_cat_pt = torch.cat(cs, dim=split_dim)
+        y_pt = torch.add(extra_concat_pt, bmm_cat_pt)
+
+        # Gen module.
+        target = detect_target()
+        model= compile_model(Y, target, "./tmp", self._testMethodName)
+        # Both splits should be removed, including the split that is used by
+        # both bmm and concat
+        self.assertFalse(graph_has_op(model.debug_sorted_graph, "split"))
+        self.assertEquals(len(model.debug_sorted_graph), 5)
+        y = torch.empty_like(y_pt)
+        model.run_with_tensors({"input0": a, "input1": b}, [y])
+        self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
 
 
 if __name__ == "__main__":
