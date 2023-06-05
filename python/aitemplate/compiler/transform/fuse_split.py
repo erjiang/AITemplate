@@ -172,6 +172,11 @@ def _check_alignment(op: Operator, offset: int):
     # ops that don't have valid alignments
     if not alignment.valid_alignment(offset, dtype):
         return False
+    if op._attrs["op"] == "concatenate":
+        return all(
+            _check_dim_alignment(ia.original_shapes, op._attrs["concat_dim"], dtype)
+            for ia in op._attrs["input_accessors"]
+        )
     if op._attrs["op"] == "bmm_rrr_permute":
         a_shape = op._attrs["input_accessors"][0].original_shapes
         b_shape = op._attrs["input_accessors"][1].original_shapes
@@ -253,6 +258,7 @@ def _fuse_split_and_strided_op(sorted_graph: List[Tensor]) -> List[Tensor]:
                 (
                     next_op._attrs["op"] == "concatenate"
                     and next_op._attrs["concat_dim"] == split_dim
+                    and _check_alignment(next_op, dim_offset * stride)
                 )
                 for next_op in output.dst_ops()
             )
