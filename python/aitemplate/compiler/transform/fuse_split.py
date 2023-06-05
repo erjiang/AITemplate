@@ -173,6 +173,9 @@ def _check_alignment(op: Operator, offset: int):
     if not alignment.valid_alignment(offset, dtype):
         return False
     if op._attrs["op"] == "concatenate":
+        # this alignment check prevents optimizing some cases where it's still
+        # possible to remove the split op, but prevents compilation errors in
+        # other cases
         return all(
             _check_dim_alignment(ia.original_shapes, op._attrs["concat_dim"], dtype)
             for ia in op._attrs["input_accessors"]
