@@ -241,7 +241,7 @@ class FuseSplitCatTestCase(unittest.TestCase):
         # Both splits should be removed, including the split that is used by
         # both bmm and concat
         self.assertFalse(graph_has_op(model.debug_sorted_graph, "split"))
-        self.assertEquals(len(model.debug_sorted_graph), 5)
+        self.assertEqual(len(model.debug_sorted_graph), 5)
         y = torch.empty_like(y_pt)
         model.run_with_tensors({"input0": a, "input1": b}, [y])
         self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
