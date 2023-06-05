@@ -254,8 +254,8 @@ def _fuse_split_and_strided_op(sorted_graph: List[Tensor]) -> List[Tensor]:
                     # need to pass the real offset to alignment checker
                     and _check_alignment(next_op, dim_offset * stride)
                     and len(output.dst_ops()) == 1
-                ) or
-                (
+                )
+                or (
                     next_op._attrs["op"] == "concatenate"
                     and next_op._attrs["concat_dim"] == split_dim
                     and _check_alignment(next_op, dim_offset * stride)

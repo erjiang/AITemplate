@@ -16,9 +16,9 @@ import unittest
 
 import torch
 from aitemplate.compiler import compile_model, ops
-from aitemplate.compiler.ops.common.epilogue import FuncEnum
 
 from aitemplate.compiler.base import Tensor
+from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.compiler.public import IntImm
 
 from aitemplate.testing import detect_target
@@ -38,9 +38,7 @@ class FuseSplitCatTestCase(unittest.TestCase):
             name="input_1",
             is_input=True,
         )
-        split_2 = ops.split()(
-            input_1, [139, 373], 0
-        )
+        split_2 = ops.split()(input_1, [139, 373], 0)
         concatenate_3 = ops.concatenate()(split_2[::-1], 0)
 
         # Set outputs
@@ -48,10 +46,7 @@ class FuseSplitCatTestCase(unittest.TestCase):
         concatenate_3._attrs["is_output"] = True
         # Compile
         model = compile_model(
-            concatenate_3,
-            detect_target(),
-            "./tmp",
-            self._testMethodName
+            concatenate_3, detect_target(), "./tmp", self._testMethodName
         )
         # Check that split was removed
         self.assertFalse(graph_has_op(model.debug_sorted_graph, "split"))
@@ -81,9 +76,7 @@ class FuseSplitCatTestCase(unittest.TestCase):
             name="input_1",
             is_input=True,
         )
-        split_2 = ops.split()(
-            input_1, int(M.value()/2), 0
-        )
+        split_2 = ops.split()(input_1, int(M.value() / 2), 0)
         concatenate_3 = ops.concatenate()([split_2[1], split_2[0], split_2[1]], 0)
 
         # Set outputs
@@ -91,17 +84,14 @@ class FuseSplitCatTestCase(unittest.TestCase):
         concatenate_3._attrs["is_output"] = True
         # Compile
         model = compile_model(
-            concatenate_3,
-            detect_target(),
-            "./tmp",
-            self._testMethodName
+            concatenate_3, detect_target(), "./tmp", self._testMethodName
         )
         # Check that split was removed
         self.assertFalse(graph_has_op(model.debug_sorted_graph, "split"))
         # Run
         input_1 = get_random_torch_tensor((M.value(), N.value()), dtype=dtype)
         # Compare
-        split_pt = torch.split(input_1, int(M.value()/2), 0)
+        split_pt = torch.split(input_1, int(M.value() / 2), 0)
         y_pt = torch.cat(
             [split_pt[1], split_pt[0], split_pt[1]],
             0,
@@ -123,9 +113,7 @@ class FuseSplitCatTestCase(unittest.TestCase):
             name="input_1",
             is_input=True,
         )
-        split_2 = ops.split()(
-            input_1, int(N.value()/2), 1
-        )
+        split_2 = ops.split()(input_1, int(N.value() / 2), 1)
         concatenate_3 = ops.concatenate()(split_2[::-1], 1)
 
         # Set outputs
@@ -133,17 +121,14 @@ class FuseSplitCatTestCase(unittest.TestCase):
         concatenate_3._attrs["is_output"] = True
         # Compile
         model = compile_model(
-            concatenate_3,
-            detect_target(),
-            "./tmp",
-            self._testMethodName
+            concatenate_3, detect_target(), "./tmp", self._testMethodName
         )
         # Check that split was removed
         self.assertFalse(graph_has_op(model.debug_sorted_graph, "split"))
         # Run
         input_1 = get_random_torch_tensor((M.value(), N.value()), dtype=dtype)
         # Compare
-        split_pt = torch.split(input_1, int(N.value()/2), 1)
+        split_pt = torch.split(input_1, int(N.value() / 2), 1)
         y_pt = torch.cat(
             split_pt[::-1],
             1,
@@ -154,7 +139,6 @@ class FuseSplitCatTestCase(unittest.TestCase):
             [y_ait],
         )
         torch.testing.assert_close(y_ait, y_pt, atol=0, rtol=0)
-
 
     def test_fuse_split_cat_different_dims(self):
         """Splitting and then concatting on different dims is not
@@ -168,9 +152,7 @@ class FuseSplitCatTestCase(unittest.TestCase):
             name="input_1",
             is_input=True,
         )
-        split_2 = ops.split()(
-            input_1, int(M.value()/2), 0
-        )
+        split_2 = ops.split()(input_1, int(M.value() / 2), 0)
         concatenate_3 = ops.concatenate()(split_2[::-1], 1)
 
         # Set outputs
@@ -178,17 +160,14 @@ class FuseSplitCatTestCase(unittest.TestCase):
         concatenate_3._attrs["is_output"] = True
         # Compile
         model = compile_model(
-            concatenate_3,
-            detect_target(),
-            "./tmp",
-            self._testMethodName
+            concatenate_3, detect_target(), "./tmp", self._testMethodName
         )
         # Check that split was not removed because the dims are different
         self.assertTrue(graph_has_op(model.debug_sorted_graph, "split"))
         # Run
         input_1 = get_random_torch_tensor((M.value(), N.value()), dtype=dtype)
         # Compare
-        split_pt = torch.split(input_1, int(M.value()/2), 0)
+        split_pt = torch.split(input_1, int(M.value() / 2), 0)
         y_pt = torch.cat(
             split_pt[::-1],
             1,
@@ -210,7 +189,7 @@ class FuseSplitCatTestCase(unittest.TestCase):
         split_size_or_sections = 256
         split_dim = 2
         T_A = Tensor(
-            # feed the second half of T_A into concatenate so that the split
+            # feed the second half of T_A into additional concat so that the split
             # output is used by both bmm and concat
             shape=[B, M, K * 2],
             dtype=dtype,
@@ -226,7 +205,7 @@ class FuseSplitCatTestCase(unittest.TestCase):
 
         Xs = ops.split()(T_A, split_size_or_sections, split_dim)
         Ys = ops.split()(T_B, split_size_or_sections, split_dim)
-        assert len(Xs)//2 == len(Ys)
+        assert len(Xs) // 2 == len(Ys)
 
         n = 2
         Cs = []
@@ -242,7 +221,7 @@ class FuseSplitCatTestCase(unittest.TestCase):
         Y._attrs["name"] = "output"
         Y._attrs["is_output"] = True
 
-        a = get_random_torch_tensor([B, M, K*2], dtype)
+        a = get_random_torch_tensor([B, M, K * 2], dtype)
         b = get_random_torch_tensor([B, N, K], dtype)
         xs = a.split(split_size_or_sections, split_dim)
         ys = b.split(split_size_or_sections, split_dim)
@@ -258,7 +237,7 @@ class FuseSplitCatTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        model= compile_model(Y, target, "./tmp", self._testMethodName)
+        model = compile_model(Y, target, "./tmp", self._testMethodName)
         # Both splits should be removed, including the split that is used by
         # both bmm and concat
         self.assertFalse(graph_has_op(model.debug_sorted_graph, "split"))
