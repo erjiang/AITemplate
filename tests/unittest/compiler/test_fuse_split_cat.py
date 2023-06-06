@@ -28,17 +28,17 @@ from aitemplate.utils import graph_utils
 
 
 class FuseSplitCatTestCase(unittest.TestCase):
-    def test_fuse_split_cat_rearrange(self):
+    def _test_fuse_split_cat_rearrange(self, M, N, split, remove_split=True):
         dtype = "float16"
-        M = IntImm(512)
-        N = IntImm(512)
+        M = IntImm(M)
+        N = IntImm(N)
 
         input_1 = Tensor(
             shape=[M, N],
             name="input_1",
             is_input=True,
         )
-        split_2 = ops.split()(input_1, [139, 373], 0)
+        split_2 = ops.split()(input_1, split, 0)
         concatenate_3 = ops.concatenate()(split_2[::-1], 0)
 
         # Set outputs
@@ -49,11 +49,13 @@ class FuseSplitCatTestCase(unittest.TestCase):
             concatenate_3, detect_target(), "./tmp", self._testMethodName
         )
         # Check that split was removed
-        self.assertFalse(graph_has_op(model.debug_sorted_graph, "split"))
+        self.assertEqual(
+            graph_has_op(model.debug_sorted_graph, "split"), not remove_split
+        )
         # Run
         input_1 = get_random_torch_tensor((M.value(), N.value()), dtype=dtype)
         # Compare
-        split_pt = torch.split(input_1, [139, 373], 0)
+        split_pt = torch.split(input_1, split, 0)
         y_pt = torch.cat(
             [split_pt[1], split_pt[0]],
             0,
@@ -64,6 +66,14 @@ class FuseSplitCatTestCase(unittest.TestCase):
             [y_ait],
         )
         torch.testing.assert_close(y_ait, y_pt, atol=0, rtol=0)
+
+    def test_fuse_split_cat_even(self):
+        self._test_fuse_split_cat_rearrange(512, 512, split=[256, 256], remove_split=True)
+
+    def test_fuse_split_cat_odd(self):
+        self._test_fuse_split_cat_rearrange(
+            512, 512, split=[139, 373], remove_split=False
+        )
 
     def test_fuse_split_cat_reuse(self):
         """Use a split output twice in the concatenate op."""
