@@ -24,8 +24,6 @@ from aitemplate.compiler.public import IntImm
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor, graph_has_op
 
-from aitemplate.utils import graph_utils
-
 
 class FuseSplitCatTestCase(unittest.TestCase):
     def _test_fuse_split_cat_rearrange(self, M, N, split, remove_split=True):
@@ -68,7 +66,9 @@ class FuseSplitCatTestCase(unittest.TestCase):
         torch.testing.assert_close(y_ait, y_pt, atol=0, rtol=0)
 
     def test_fuse_split_cat_even(self):
-        self._test_fuse_split_cat_rearrange(512, 512, split=[256, 256], remove_split=True)
+        self._test_fuse_split_cat_rearrange(
+            512, 512, split=[256, 256], remove_split=True
+        )
 
     def test_fuse_split_cat_odd(self):
         self._test_fuse_split_cat_rearrange(
