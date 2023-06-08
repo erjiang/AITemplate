@@ -247,18 +247,24 @@ def _fuse_split_and_strided_op(sorted_graph: List[Tensor]) -> List[Tensor]:
         # still have mis-aligned accesses caused by offsets. This _check_alignment
         # filters out all bad cases.
         for output in outputs:
-            total_elems_from_split_dim = stride * split_input._attrs["shape"][split_dim].value()
+            total_elems_from_split_dim = (
+                stride * split_input._attrs["shape"][split_dim].value()
+            )
             can_fuse_split &= len(output.dst_ops()) > 0 and all(
                 (
                     _is_supported_op(next_op._attrs["op"])
                     # need to pass the real offset to alignment checker
-                    and _check_alignment(next_op, dim_offset * stride, total_elems_from_split_dim)
+                    and _check_alignment(
+                        next_op, dim_offset * stride, total_elems_from_split_dim
+                    )
                     and len(output.dst_ops()) == 1
                 )
                 or (
                     next_op._attrs["op"] == "concatenate"
                     and next_op._attrs["concat_dim"] == split_dim
-                    and _check_alignment(next_op, dim_offset * stride, total_elems_from_split_dim)
+                    and _check_alignment(
+                        next_op, dim_offset * stride, total_elems_from_split_dim
+                    )
                 )
                 for next_op in output.dst_ops()
             )
