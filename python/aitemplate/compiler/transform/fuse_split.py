@@ -163,7 +163,7 @@ def _check_dim_alignment(shape: List[IntVar], dim_idx: int, dtype: str) -> bool:
     return alignment.valid_alignment(k_dim_val, dtype)
 
 
-def _check_alignment(op: Operator, offset: int):
+def _check_alignment(op: Operator, offset: int, total_elems_from_split_dim: int):
     # ops that support align=1
     if op._attrs["op"] == "bmm_rcr_n1":
         return True
@@ -172,14 +172,10 @@ def _check_alignment(op: Operator, offset: int):
     # ops that don't have valid alignments
     if not alignment.valid_alignment(offset, dtype):
         return False
+    if not alignment.valid_alignment(total_elems_from_split_dim, dtype):
+        return False
     if op._attrs["op"] == "concatenate":
-        # this alignment check prevents optimizing some cases where it's still
-        # possible to remove the split op, but prevents compilation errors in
-        # other cases
-        return all(
-            _check_dim_alignment(ia.original_shapes, op._attrs["concat_dim"], dtype)
-            for ia in op._attrs["input_accessors"]
-        )
+        return True
     if op._attrs["op"] == "bmm_rrr_permute":
         a_shape = op._attrs["input_accessors"][0].original_shapes
         b_shape = op._attrs["input_accessors"][1].original_shapes
@@ -251,17 +247,18 @@ def _fuse_split_and_strided_op(sorted_graph: List[Tensor]) -> List[Tensor]:
         # still have mis-aligned accesses caused by offsets. This _check_alignment
         # filters out all bad cases.
         for output in outputs:
+            total_elems_from_split_dim = stride * split_input._attrs["shape"][split_dim].value()
             can_fuse_split &= len(output.dst_ops()) > 0 and all(
                 (
                     _is_supported_op(next_op._attrs["op"])
                     # need to pass the real offset to alignment checker
-                    and _check_alignment(next_op, dim_offset * stride)
+                    and _check_alignment(next_op, dim_offset * stride, total_elems_from_split_dim)
                     and len(output.dst_ops()) == 1
                 )
                 or (
                     next_op._attrs["op"] == "concatenate"
                     and next_op._attrs["concat_dim"] == split_dim
-                    and _check_alignment(next_op, dim_offset * stride)
+                    and _check_alignment(next_op, dim_offset * stride, total_elems_from_split_dim)
                 )
                 for next_op in output.dst_ops()
             )

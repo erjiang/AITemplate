@@ -72,7 +72,7 @@ class FuseSplitCatTestCase(unittest.TestCase):
 
     def test_fuse_split_cat_odd(self):
         self._test_fuse_split_cat_rearrange(
-            512, 512, split=[139, 373], remove_split=False
+            512, 512, split=[139, 373], remove_split=True
         )
 
     def test_fuse_split_cat_reuse(self):
