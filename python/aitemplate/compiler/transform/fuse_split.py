@@ -246,10 +246,10 @@ def _fuse_split_and_strided_op(sorted_graph: List[Tensor]) -> List[Tensor]:
         # We apply padding to bmm before this fuse_split pass. However, we may
         # still have mis-aligned accesses caused by offsets. This _check_alignment
         # filters out all bad cases.
+        total_elems_from_split_dim = (
+            stride * split_input._attrs["shape"][split_dim].value()
+        )
         for output in outputs:
-            total_elems_from_split_dim = (
-                stride * split_input._attrs["shape"][split_dim].value()
-            )
             can_fuse_split &= len(output.dst_ops()) > 0 and all(
                 (
                     _is_supported_op(next_op._attrs["op"])
